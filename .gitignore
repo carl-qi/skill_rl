@@ -5,6 +5,7 @@
 
 # Log
 /log
+/spirl_log
 wandb
 /*.log
 /result

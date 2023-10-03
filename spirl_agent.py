@@ -1,5 +1,6 @@
 from pathlib import Path
 import copy
+from spirl.data.maze.src.maze_agents import MazeACActionPriorSACAgent
 import torch
 
 from spirl.rl.components.agent import FixedIntervalHierarchicalAgent
@@ -7,9 +8,9 @@ from spirl.rl.components.replay_buffer import UniformReplayBuffer
 from spirl.rl.components.critic import SplitObsMLPCritic
 from spirl.rl.agents.ac_agent import SACAgent
 from spirl.utils.general_utils import AttrDict
-from spirl.models.closed_loop_spirl_mdl import ClSPiRLMdl
-from spirl.rl.policies.cl_model_policies import ClModelPolicy
-from spirl.rl.policies.prior_policies import LearnedPriorAugmentedPIPolicy
+from spirl.models.closed_loop_spirl_mdl import ClSPiRLMdl, ImageClSPiRLMdl
+from spirl.rl.policies.cl_model_policies import ACClModelPolicy, ClModelPolicy
+from spirl.rl.policies.prior_policies import ACLearnedPriorAugmentedPIPolicy, LearnedPriorAugmentedPIPolicy
 from spirl.rl.agents.prior_sac_agent import ActionPriorSACAgent
 from spirl.rl.components.critic import MLPCritic
 from spirl.models.skill_prior_mdl import SkillPriorMdl
@@ -71,17 +72,15 @@ class SPiRLAgent(FixedIntervalHierarchicalAgent):
             state_dim=data_spec.state_dim,
             action_dim=data_spec.n_actions,
             n_rollout_steps=10,
-            kl_div_weight=1e-3,
-            nz_vae=10,
-            nz_enc=128,
-            nz_mid=128,
-            n_processing_layers=5,
+            kl_div_weight=1e-2,
+            prior_input_res=data_spec.res,
+            n_input_frames=2,
             cond_decode=True,
         )
 
         # LL Policy
         ll_policy_params = AttrDict(
-            policy_model=ClSPiRLMdl,
+            policy_model=ImageClSPiRLMdl,
             policy_model_params=ll_model_params,
             policy_model_checkpoint=Path(
                 "log/skill_prior_learning/maze/hierarchical_cl/maze_TA_prior"
@@ -95,27 +94,24 @@ class SPiRLAgent(FixedIntervalHierarchicalAgent):
             input_dim=data_spec.state_dim,
             output_dim=1,
             action_input=True,
-            unused_obs_size=ll_model_params.nz_vae,  # ignore HL policy z output in observation for LL critic
+            unused_obs_size=10,     # ignore HL policy z output in observation for LL critic
         )
 
         # LL Agent
         ll_agent_config = copy.deepcopy(base_agent_params)
-        ll_agent_config.update(
-            AttrDict(
-                policy=ClModelPolicy,
-                policy_params=ll_policy_params,
-                critic=SplitObsMLPCritic,
-                critic_params=ll_critic_params,
-            )
-        )
+        ll_agent_config.update(AttrDict(
+            policy=ACClModelPolicy,
+            policy_params=ll_policy_params,
+            critic=SplitObsMLPCritic,
+            critic_params=ll_critic_params,
+        ))
 
         ###### High-Level ########
         # HL Policy
         hl_policy_params = AttrDict(
-            action_dim=ll_model_params.nz_vae,  # z-dimension of the skill VAE
+            action_dim=10,       # z-dimension of the skill VAE
             input_dim=data_spec.state_dim,
-            squash_output_dist=True,
-            max_action_range=2.0,  # prior is Gaussian with unit variance
+            max_action_range=2.,        # prior is Gaussian with unit variance
             prior_model=ll_policy_params.policy_model,
             prior_model_params=ll_policy_params.policy_model_params,
             prior_model_checkpoint=ll_policy_params.policy_model_checkpoint,
@@ -129,23 +125,24 @@ class SPiRLAgent(FixedIntervalHierarchicalAgent):
             n_layers=2,  # number of policy network layers
             nz_mid=256,
             action_input=True,
+            unused_obs_size=ll_model_params.prior_input_res **2 * 3 * ll_model_params.n_input_frames,
         )
 
         # HL Agent
         hl_agent_config = copy.deepcopy(base_agent_params)
         hl_agent_config.update(
             AttrDict(
-                policy=LearnedPriorAugmentedPIPolicy,
+                policy=ACLearnedPriorAugmentedPIPolicy,
                 policy_params=hl_policy_params,
-                critic=MLPCritic,
+                critic=SplitObsMLPCritic,
                 critic_params=hl_critic_params,
-                td_schedule_params=AttrDict(p=10.0),
+                td_schedule_params=AttrDict(p=1.0),
             )
         )
 
         ##### Joint Agent #######
         agent_config = AttrDict(
-            hl_agent=ActionPriorSACAgent,
+            hl_agent=MazeACActionPriorSACAgent,
             hl_agent_params=hl_agent_config,
             ll_agent=SACAgent,
             ll_agent_params=ll_agent_config,
