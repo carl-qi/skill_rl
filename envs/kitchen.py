@@ -20,11 +20,14 @@ class KitchenEnv(GymEnv):
         "bottom burner",
         "light switch",
         "top burner",
+        "left hinge cabinet",
     ]
 
     def __init__(self, *args, **kwargs):
         if args[0]["task"] == "misaligned":
             self.name = "kitchen-mlsh-v0"  # Microwave - Light - Slider - Hinge
+        elif args[0]["task"] == "newskill":
+            self.name = "kitchen-newskill-v0" # Left Hinge Cabinet
         else:
             self.name = "kitchen-mixed-v0"  # Microwave - Kettle - Bottom Burner - Light
 

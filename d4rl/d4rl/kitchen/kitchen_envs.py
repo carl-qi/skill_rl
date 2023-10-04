@@ -14,6 +14,7 @@ OBS_ELEMENT_INDICES = {
     "hinge cabinet": np.array([20, 21]),
     "microwave": np.array([22]),
     "kettle": np.array([23, 24, 25, 26, 27, 28, 29]),
+    "left hinge cabinet": np.array([20]),
 }
 OBS_ELEMENT_GOALS = {
     "bottom burner": np.array([-0.88, -0.01]),
@@ -23,6 +24,7 @@ OBS_ELEMENT_GOALS = {
     "hinge cabinet": np.array([0.0, 1.45]),
     "microwave": np.array([-0.75]),
     "kettle": np.array([-0.23, 0.75, 1.62, 0.99, 0.0, 0.0, -0.06]),
+    "left hinge cabinet": np.array([-0.75])
 }
 BONUS_THRESH = 0.3
 
@@ -40,6 +42,7 @@ class KitchenBase(KitchenTaskRelaxV1, OfflineEnv):
         "hinge cabinet",
         "microwave",
         "kettle",
+        "left hinge cabinet",
     ]
     REMOVE_TASKS_WHEN_COMPLETE = True
     TERMINATE_ON_TASK_COMPLETE = True
@@ -163,6 +166,9 @@ class KitchenMicrowaveKettleLightSliderV0(KitchenBase):
         seqs = self._split_data_into_seqs(data)
         return seqs[1]["states"][-1]
 
+class KitchenLeftHingeCabinet(KitchenBase):
+    # new task: open left hinge cabinet
+    TASK_ELEMENTS = ["left hinge cabinet"]
 
 class KitchenAllTasksV0(KitchenBase):
     TASK_ELEMENTS = [
